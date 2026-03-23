@@ -1,0 +1,30 @@
+name: stoat_client
+description: A Stoat (Revolt) client for Linux, Android, and iOS.
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP
+  http: ^1.2.0
+
+  # WebSocket — works on Android, iOS, Linux, web
+  web_socket_channel: ^3.0.0
+
+  # Secure credential storage
+  # Android: EncryptedSharedPreferences
+  # iOS/macOS: Keychain
+  # Linux: libsecret (requires libsecret-1-dev on the build machine)
+  flutter_secure_storage: ^9.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
