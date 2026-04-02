@@ -1,0 +1,71 @@
+import 'package:flutter/foundation.dart';
+import '../api/models/server.dart';
+import '../api/models/channel.dart';
+import '../api/models/user.dart';
+import '../api/models/message.dart';
+
+class AppState extends ChangeNotifier {
+  List<StoatServer> servers = [];
+  List<StoatChannel> channels = [];
+  List<StoatUser> users = [];
+
+  StoatServer? selectedServer;
+  StoatChannel? selectedChannel;
+
+  void loadFromReady({
+    required List<StoatServer> servers,
+    required List<StoatChannel> channels,
+    required List<StoatUser> users,
+  }) {
+    this.servers = servers;
+    this.channels = channels;
+    this.users = users;
+    selectedServer = servers.isNotEmpty ? servers.first : null;
+    selectedChannel = _firstChannelFor(selectedServer);
+    notifyListeners();
+  }
+
+  List<StoatChannel> channelsFor(StoatServer server) =>
+      channels.where((c) => c.serverId == server.id).toList();
+
+  void selectServer(StoatServer server) {
+    selectedServer = server;
+    selectedChannel = _firstChannelFor(server);
+    notifyListeners();
+  }
+
+  void selectChannel(StoatChannel channel) {
+    selectedChannel = channel;
+    notifyListeners();
+  }
+
+  StoatChannel? _firstChannelFor(StoatServer? server) {
+    if (server == null) return null;
+    final list = channelsFor(server);
+    return list.isNotEmpty ? list.first : null;
+  }
+
+  final Map<String, List<StoatMessage>> _messages = {};
+
+  List<StoatMessage> messagesFor(String channelId) =>
+    _messages[channelId] ?? [];
+
+  void setMessages(String channelId, List<StoatMessage> messages) {
+    _messages[channelId] = messages;
+    notifyListeners();
+  }
+
+  void prependMessage(String channelId, StoatMessage message) {
+    _messages[channelId] = [message, ...(_messages[channelId] ?? [])];
+    notifyListeners();
+  }
+
+  final Map<String, StoatUser> _userCache = {};
+
+StoatUser? cachedUser(String id) => _userCache[id];
+
+void cacheUser(StoatUser user) {
+  _userCache[user.id] = user;
+  notifyListeners();
+}
+}

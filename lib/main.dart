@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'api/stoat_client.dart';
 import 'api/config.dart';
 import 'api/websocket/events.dart';
 import 'api/websocket/stoat_websocket.dart';
+import 'state/app_state.dart';
+import 'ui/shell.dart';
 
 void main() {
   runApp(const StoatApp());
@@ -13,15 +16,17 @@ class StoatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Stoat Client',
-      theme: ThemeData.dark(useMaterial3: true),
-      home: const _Root(),
+    return ChangeNotifierProvider(
+      create: (_) => AppState(),
+      child: MaterialApp(
+        title: 'Stoat Client',
+        theme: ThemeData.dark(useMaterial3: true),
+        home: const _Root(),
+      ),
     );
   }
 }
 
-/// Decides whether to show Login or the main UI on startup.
 class _Root extends StatefulWidget {
   const _Root();
 
@@ -42,7 +47,6 @@ class _RootState extends State<_Root> {
   Future<void> _tryRestore() async {
     await _client.tryRestoreSession();
     if (mounted) setState(() => _loading = false);
-    // Navigation handled in build based on isLoggedIn.
   }
 
   @override
@@ -63,7 +67,7 @@ class _RootState extends State<_Root> {
   }
 }
 
-// ── Login screen ────────────────────────────────────────────────────────────
+// ── Login screen ─────────────────────────────────────────────────────────────
 
 class LoginScreen extends StatefulWidget {
   final StoatClient client;
@@ -136,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ── Main screen (post-login) ─────────────────────────────────────────────────
+// ── Main screen ───────────────────────────────────────────────────────────────
 
 class MainScreen extends StatefulWidget {
   final StoatClient client;
@@ -148,7 +152,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   WsState _wsState = WsState.disconnected;
-  final List<String> _eventLog = [];
 
   @override
   void initState() {
@@ -159,18 +162,14 @@ class _MainScreenState extends State<MainScreen> {
     });
 
     widget.client.events.listen((event) {
-      final label = switch (event) {
-        ReadyEvent()        => 'Ready — servers/channels loaded',
-        MessageEvent(:final content, :final channelId) =>
-          'Message in $channelId: $content',
-        AuthenticatedEvent() => 'Authenticated ✓',
-        ErrorEvent(:final error) => 'Error: $error',
-        LogoutEvent()       => 'Session expired — logging out',
-        UnknownEvent(:final type) => 'Unknown: $type',
-        _                   => event.runtimeType.toString(),
-      };
-      if (mounted) setState(() => _eventLog.insert(0, label));
-
+      if (event is ReadyEvent) {
+        final appState = context.read<AppState>();
+        appState.loadFromReady(
+          servers: event.servers,
+          channels: event.channels,
+          users: event.users,
+        );
+      }
       if (event is LogoutEvent && mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -192,22 +191,16 @@ class _MainScreenState extends State<MainScreen> {
             child: Chip(
               label: Text(_wsState.name),
               backgroundColor: switch (_wsState) {
-                WsState.connected     => Colors.green.shade800,
+                WsState.connected      => Colors.green.shade800,
                 WsState.authenticating => Colors.orange.shade800,
-                WsState.reconnecting  => Colors.yellow.shade800,
-                _                    => Colors.red.shade800,
+                WsState.reconnecting   => Colors.yellow.shade800,
+                _                      => Colors.red.shade800,
               },
             ),
           ),
         ],
       ),
-      body: ListView.builder(
-        itemCount: _eventLog.length,
-        itemBuilder: (_, i) => ListTile(
-          dense: true,
-          title: Text(_eventLog[i], style: const TextStyle(fontSize: 12)),
-        ),
-      ),
+      body: ShellScreen(client: widget.client),
     );
   }
 }

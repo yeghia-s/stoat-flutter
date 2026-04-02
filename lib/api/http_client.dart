@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'config.dart';
 import 'models/session.dart';
+import 'models/message.dart';
 
 /// All REST calls go through here.
 /// Throws [StoatApiException] on non-2xx responses.
@@ -92,6 +93,31 @@ class StoatHttpClient {
       message: body['err'] as String? ?? res.body,
     );
   }
+
+  Future<List<StoatMessage>> fetchMessages(String channelId, {int limit = 50}) async {
+  final res = await http.get(
+    _uri('/channels/$channelId/messages?limit=$limit'),
+    headers: _headers,
+  );
+  if (res.statusCode < 200 || res.statusCode >= 300) {
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    throw StoatApiException(
+      statusCode: res.statusCode,
+      type: body['type'] as String? ?? 'Unknown',
+      message: body['err'] as String? ?? res.body,
+    );
+  }
+  final decoded = jsonDecode(res.body);
+  final list = decoded is List ? decoded : (decoded['messages'] as List? ?? []);
+  return list
+      .map((m) => StoatMessage.fromJson(m as Map<String, dynamic>))
+      .toList();
+}
+
+Future<Map<String, dynamic>> fetchUser(String userId) async {
+  return _get('/users/$userId');
+}
+
 }
 
 class StoatApiException implements Exception {

@@ -1,3 +1,7 @@
+import '../models/server.dart';
+import '../models/channel.dart';
+import '../models/user.dart';
+
 /// Every message received from the Stoat WebSocket (Bonfire) is one of these.
 /// Unrecognised types are wrapped in [UnknownEvent] so nothing crashes.
 sealed class StoatEvent {
@@ -34,23 +38,26 @@ final class AuthenticatedEvent extends StoatEvent {
 
 /// Server sent the initial state snapshot right after authentication.
 final class ReadyEvent extends StoatEvent {
-  final List<dynamic> users;
-  final List<dynamic> servers;
-  final List<dynamic> channels;
-  final List<dynamic> members;
+  final List<StoatUser> users;
+  final List<StoatServer> servers;
+  final List<StoatChannel> channels;
 
   const ReadyEvent({
     required this.users,
     required this.servers,
     required this.channels,
-    required this.members,
   });
 
   factory ReadyEvent.fromJson(Map<String, dynamic> j) => ReadyEvent(
-        users: j['users'] as List? ?? [],
-        servers: j['servers'] as List? ?? [],
-        channels: j['channels'] as List? ?? [],
-        members: j['members'] as List? ?? [],
+        users: (j['users'] as List? ?? [])
+            .map((u) => StoatUser.fromJson(u as Map<String, dynamic>))
+            .toList(),
+        servers: (j['servers'] as List? ?? [])
+            .map((s) => StoatServer.fromJson(s as Map<String, dynamic>))
+            .toList(),
+        channels: (j['channels'] as List? ?? [])
+            .map((c) => StoatChannel.fromJson(c as Map<String, dynamic>))
+            .toList(),
       );
 }
 

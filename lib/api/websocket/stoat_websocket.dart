@@ -95,6 +95,8 @@ class StoatWebSocket {
       return;
     }
 
+    dev.log('[WS] Raw: $raw', name: 'stoat.ws');
+
     final event = StoatEvent.fromJson(json);
 
     switch (event) {
