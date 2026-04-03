@@ -3,6 +3,7 @@ import '../api/models/server.dart';
 import '../api/models/channel.dart';
 import '../api/models/user.dart';
 import '../api/models/message.dart';
+import '../api/models/member.dart';
 
 class AppState extends ChangeNotifier {
   List<StoatServer> servers = [];
@@ -12,18 +13,28 @@ class AppState extends ChangeNotifier {
   StoatServer? selectedServer;
   StoatChannel? selectedChannel;
 
+  final Map<String, String> _memberAvatars = {};
+
   void loadFromReady({
     required List<StoatServer> servers,
     required List<StoatChannel> channels,
     required List<StoatUser> users,
+    required List<StoatMember> members,
   }) {
     this.servers = servers;
     this.channels = channels;
     this.users = users;
+    for (final m in members) {
+      if (m.avatarId != null) {
+        _memberAvatars[m.userId] = m.avatarId!;
+      }
+    }
     selectedServer = servers.isNotEmpty ? servers.first : null;
     selectedChannel = _firstChannelFor(selectedServer);
     notifyListeners();
   }
+
+  String? memberAvatarId(String userId) => _memberAvatars[userId];
 
   List<StoatChannel> channelsFor(StoatServer server) =>
       channels.where((c) => c.serverId == server.id).toList();

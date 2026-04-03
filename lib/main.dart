@@ -168,6 +168,7 @@ class _MainScreenState extends State<MainScreen> {
           servers: event.servers,
           channels: event.channels,
           users: event.users,
+          members: event.members,
         );
       }
       if (event is LogoutEvent && mounted) {

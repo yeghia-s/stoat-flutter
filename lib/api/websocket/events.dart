@@ -1,6 +1,7 @@
 import '../models/server.dart';
 import '../models/channel.dart';
 import '../models/user.dart';
+import '../models/member.dart';
 
 /// Every message received from the Stoat WebSocket (Bonfire) is one of these.
 /// Unrecognised types are wrapped in [UnknownEvent] so nothing crashes.
@@ -41,11 +42,13 @@ final class ReadyEvent extends StoatEvent {
   final List<StoatUser> users;
   final List<StoatServer> servers;
   final List<StoatChannel> channels;
+  final List<StoatMember> members;
 
   const ReadyEvent({
     required this.users,
     required this.servers,
     required this.channels,
+    required this.members,
   });
 
   factory ReadyEvent.fromJson(Map<String, dynamic> j) => ReadyEvent(
@@ -57,6 +60,9 @@ final class ReadyEvent extends StoatEvent {
             .toList(),
         channels: (j['channels'] as List? ?? [])
             .map((c) => StoatChannel.fromJson(c as Map<String, dynamic>))
+            .toList(),
+        members: (j['members'] as List? ?? [])
+            .map((m) => StoatMember.fromJson(m as Map<String, dynamic>))
             .toList(),
       );
 }

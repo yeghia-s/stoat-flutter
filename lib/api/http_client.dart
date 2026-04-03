@@ -115,7 +115,8 @@ class StoatHttpClient {
 }
 
 Future<Map<String, dynamic>> fetchUser(String userId) async {
-  return _get('/users/$userId');
+  final result = await _get('/users/$userId');
+  return result;
 }
 
 }

@@ -303,6 +303,7 @@ class _MessageAreaState extends State<MessageArea> {
                                   _Avatar(
                                     user: author,
                                     autumnUrl: widget.client.config.autumnUrl,
+                                    memberAvatarId: context.read<AppState>().memberAvatarId(message.authorId),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
@@ -342,12 +343,17 @@ class _MessageAreaState extends State<MessageArea> {
 class _Avatar extends StatelessWidget {
   final StoatUser? user;
   final String autumnUrl;
+  final String? memberAvatarId;
 
-  const _Avatar({required this.user, required this.autumnUrl});
+  const _Avatar({
+    required this.user,
+    required this.autumnUrl,
+    this.memberAvatarId,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final avatarId = user?.avatarId;
+    final avatarId = user?.avatarId ?? memberAvatarId;
     return CircleAvatar(
       radius: 20,
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
