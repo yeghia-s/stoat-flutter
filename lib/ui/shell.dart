@@ -196,6 +196,33 @@ class _MessageAreaState extends State<MessageArea> {
   bool _loading = false;
   String? _error;
 
+  final _inputCtrl = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _inputCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send(String channelId) async {
+  final text = _inputCtrl.text.trim();
+  if (text.isEmpty || _sending) return;
+  setState(() => _sending = true);
+  try {
+    await widget.client.http.sendMessage(channelId, text);
+    _inputCtrl.clear();
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send: $e')),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _sending = false);
+  }
+}
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -257,7 +284,7 @@ class _MessageAreaState extends State<MessageArea> {
             ],
           ),
         ),
-        // Message list
+// Message list
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -321,8 +348,7 @@ class _MessageAreaState extends State<MessageArea> {
                                         const SizedBox(height: 2),
                                         Text(
                                           message.content ?? '',
-                                          style:
-                                              const TextStyle(fontSize: 14),
+                                          style: const TextStyle(fontSize: 14),
                                         ),
                                       ],
                                     ),
@@ -333,11 +359,45 @@ class _MessageAreaState extends State<MessageArea> {
                           },
                         ),
         ),
+        // Message input
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _inputCtrl,
+                  enabled: !_sending,
+                  decoration: InputDecoration(
+                    hintText: 'Message #${channel.name}',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                  ),
+                  onSubmitted: (_) => _send(channel.id),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _sending ? null : () => _send(channel.id),
+                icon: _sending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 }
-
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
 class _Avatar extends StatelessWidget {

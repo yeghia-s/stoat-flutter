@@ -114,6 +114,13 @@ class StoatHttpClient {
       .toList();
 }
 
+  Future<void> sendMessage(String channelId, String content) async {
+    await _post(
+      '/channels/$channelId/messages',
+      body: {'content': content},
+    );
+  }
+
 Future<Map<String, dynamic>> fetchUser(String userId) async {
   final result = await _get('/users/$userId');
   return result;

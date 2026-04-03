@@ -6,6 +6,7 @@ import 'api/websocket/events.dart';
 import 'api/websocket/stoat_websocket.dart';
 import 'state/app_state.dart';
 import 'ui/shell.dart';
+import 'api/models/message.dart';
 
 void main() {
   runApp(const StoatApp());
@@ -169,6 +170,19 @@ class _MainScreenState extends State<MainScreen> {
           channels: event.channels,
           users: event.users,
           members: event.members,
+        );
+      }
+      if (event is MessageEvent) {
+        final appState = context.read<AppState>();
+        appState.prependMessage(
+          event.channelId,
+          StoatMessage(
+            id: event.id,
+            channelId: event.channelId,
+            authorId: event.authorId,
+            content: event.content,
+            timestamp: event.timestamp,
+          ),
         );
       }
       if (event is LogoutEvent && mounted) {
