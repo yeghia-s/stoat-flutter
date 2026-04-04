@@ -13,14 +13,23 @@ class AppState extends ChangeNotifier {
   StoatServer? selectedServer;
   StoatChannel? selectedChannel;
 
+  void appendMessages(String channelId, List<StoatMessage> messages) {
+  _messages[channelId] = [...(_messages[channelId] ?? []), ...messages];
+  notifyListeners();
+}
+
   final Map<String, String> _memberAvatars = {};
+
+String autumnUrl = '';
 
   void loadFromReady({
     required List<StoatServer> servers,
     required List<StoatChannel> channels,
     required List<StoatUser> users,
     required List<StoatMember> members,
+    required String autumnUrl,
   }) {
+    this.autumnUrl = autumnUrl;
     this.servers = servers;
     this.channels = channels;
     this.users = users;

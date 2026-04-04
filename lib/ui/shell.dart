@@ -43,6 +43,7 @@ class ServerList extends StatelessWidget {
           return _ServerIcon(
             server: server,
             selected: selected,
+            autumnUrl: state.autumnUrl,
             onTap: () => state.selectServer(server),
           );
         },
@@ -55,11 +56,13 @@ class _ServerIcon extends StatelessWidget {
   final StoatServer server;
   final bool selected;
   final VoidCallback onTap;
+  final String autumnUrl;
 
   const _ServerIcon({
     required this.server,
     required this.selected,
     required this.onTap,
+    required this.autumnUrl,
   });
 
   @override
@@ -79,16 +82,24 @@ class _ServerIcon extends StatelessWidget {
                   ? Theme.of(context).colorScheme.primary
                   : Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(selected ? 16 : 24),
+              image: server.iconId != null
+                  ? DecorationImage(
+                      image: NetworkImage('$autumnUrl/icons/${server.iconId}'),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-            child: Center(
-              child: Text(
-                server.name.characters.first.toUpperCase(),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-            ),
+            child: server.iconId == null
+                ? Center(
+                    child: Text(
+                      server.name.characters.first.toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  )
+                : null,
           ),
         ),
       ),
@@ -195,7 +206,6 @@ class _MessageAreaState extends State<MessageArea> {
   String? _loadedChannelId;
   bool _loading = false;
   String? _error;
-
   final _inputCtrl = TextEditingController();
   bool _sending = false;
 
@@ -206,20 +216,47 @@ class _MessageAreaState extends State<MessageArea> {
   }
 
   Future<void> _send(String channelId) async {
-  final text = _inputCtrl.text.trim();
-  if (text.isEmpty || _sending) return;
-  setState(() => _sending = true);
-  try {
-    await widget.client.http.sendMessage(channelId, text);
-    _inputCtrl.clear();
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send: $e')),
-      );
+    final text = _inputCtrl.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.client.http.sendMessage(channelId, text);
+      _inputCtrl.clear();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
+  }
+
+  bool _loadingMore = false;
+  bool _hasMore = true;
+
+Future<void> _loadMore(String channelId) async {
+  if (_loadingMore || !_hasMore) return;
+  setState(() => _loadingMore = true);
+  try {
+    final messages = context.read<AppState>().messagesFor(channelId);
+    final oldest = messages.isNotEmpty ? messages.last.id : null;
+    final more = await widget.client.http.fetchMessages(
+      channelId,
+      before: oldest,
+    );
+    if (mounted) {
+      if (more.isEmpty) {
+        _hasMore = false;
+      } else {
+        context.read<AppState>().appendMessages(channelId, more);
+      }
+    }
+  } catch (e) {
+    // fail silently — not critical
   } finally {
-    if (mounted) setState(() => _sending = false);
+    if (mounted) setState(() => _loadingMore = false);
   }
 }
 
@@ -236,6 +273,7 @@ class _MessageAreaState extends State<MessageArea> {
     setState(() {
       _loading = true;
       _error = null;
+      _hasMore = true;
     });
     try {
       final messages = await widget.client.http.fetchMessages(channelId);
@@ -259,6 +297,7 @@ class _MessageAreaState extends State<MessageArea> {
     }
 
     final messages = context.watch<AppState>().messagesFor(channel.id);
+    final autumnUrl = context.read<AppState>().autumnUrl;
 
     return Column(
       children: [
@@ -284,7 +323,7 @@ class _MessageAreaState extends State<MessageArea> {
             ],
           ),
         ),
-// Message list
+        // Message list
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -300,8 +339,31 @@ class _MessageAreaState extends State<MessageArea> {
                       : ListView.builder(
                           reverse: true,
                           padding: const EdgeInsets.all(16),
-                          itemCount: messages.length,
+                          itemCount: messages.length + 1,
                           itemBuilder: (context, i) {
+                              if (i == messages.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Center(
+                                child: _loadingMore
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : _hasMore
+                                        ? TextButton(
+                                            onPressed: () => _loadMore(channel.id),
+                                            child: const Text('Load more'),
+                                          )
+                                        : const Text(
+                                            'Beginning of channel',
+                                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                                          ),
+                              ),
+                            );
+                          }
+
                             final message = messages[i];
                             final author = context
                                 .watch<AppState>()
@@ -329,8 +391,10 @@ class _MessageAreaState extends State<MessageArea> {
                                 children: [
                                   _Avatar(
                                     user: author,
-                                    autumnUrl: widget.client.config.autumnUrl,
-                                    memberAvatarId: context.read<AppState>().memberAvatarId(message.authorId),
+                                    autumnUrl: autumnUrl,
+                                    memberAvatarId: context
+                                        .read<AppState>()
+                                        .memberAvatarId(message.authorId),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
@@ -348,7 +412,8 @@ class _MessageAreaState extends State<MessageArea> {
                                         const SizedBox(height: 2),
                                         Text(
                                           message.content ?? '',
-                                          style: const TextStyle(fontSize: 14),
+                                          style:
+                                              const TextStyle(fontSize: 14),
                                         ),
                                       ],
                                     ),
@@ -398,6 +463,7 @@ class _MessageAreaState extends State<MessageArea> {
     );
   }
 }
+
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
 class _Avatar extends StatelessWidget {

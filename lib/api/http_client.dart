@@ -94,9 +94,13 @@ class StoatHttpClient {
     );
   }
 
-  Future<List<StoatMessage>> fetchMessages(String channelId, {int limit = 50}) async {
+Future<List<StoatMessage>> fetchMessages(String channelId, {int limit = 50, String? before}) async {
+  final query = [
+    'limit=$limit',
+    if (before != null) 'before=$before',
+  ].join('&');
   final res = await http.get(
-    _uri('/channels/$channelId/messages?limit=$limit'),
+    _uri('/channels/$channelId/messages?$query'),
     headers: _headers,
   );
   if (res.statusCode < 200 || res.statusCode >= 300) {

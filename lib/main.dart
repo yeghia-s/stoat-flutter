@@ -170,6 +170,7 @@ class _MainScreenState extends State<MainScreen> {
           channels: event.channels,
           users: event.users,
           members: event.members,
+          autumnUrl: widget.client.config.autumnUrl,
         );
       }
       if (event is MessageEvent) {
