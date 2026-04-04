@@ -24,6 +24,7 @@ class StoatServer {
   final List<String> channelIds;
   final List<StoatCategory> categories;
   final String? iconId;
+  final String? bannerId;
 
   const StoatServer({
     required this.id,
@@ -33,6 +34,7 @@ class StoatServer {
     required this.channelIds,
     required this.categories,
     this.iconId,
+    this.bannerId,
   });
 
   factory StoatServer.fromJson(Map<String, dynamic> j) => StoatServer(
@@ -45,5 +47,6 @@ class StoatServer {
             .map((c) => StoatCategory.fromJson(c as Map<String, dynamic>))
             .toList(),
         iconId: j['icon']?['_id'] as String?,
+        bannerId: j['banner']?['_id'] as String?,
       );
 }

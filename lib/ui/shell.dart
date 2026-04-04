@@ -6,17 +6,64 @@ import '../api/models/channel.dart';
 import '../api/stoat_client.dart';
 import '../api/models/user.dart';
 
-class ShellScreen extends StatelessWidget {
+class ShellScreen extends StatefulWidget {
   final StoatClient client;
   const ShellScreen({super.key, required this.client});
+
+  @override
+  State<ShellScreen> createState() => _ShellScreenState();
+}
+
+class _ShellScreenState extends State<ShellScreen> {
+  bool _channelListVisible = true;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         const ServerList(),
-        const ChannelList(),
-        Expanded(child: MessageArea(client: client)),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child: _channelListVisible
+              ? const ChannelList()
+              : const SizedBox.shrink(),
+        ),
+        Expanded(
+          child: Column(
+            children: [
+              // Toggle bar at the top of the message area
+              Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                        color: Theme.of(context).dividerColor),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        _channelListVisible
+                            ? Icons.menu_open
+                            : Icons.menu,
+                        size: 20,
+                      ),
+                      onPressed: () => setState(
+                          () => _channelListVisible = !_channelListVisible),
+                      tooltip: _channelListVisible
+                          ? 'Hide channels'
+                          : 'Show channels',
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: MessageArea(client: widget.client)),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -109,8 +156,15 @@ class _ServerIcon extends StatelessWidget {
 
 // ── Channel list (middle column) ──────────────────────────────────────────────
 
-class ChannelList extends StatelessWidget {
+class ChannelList extends StatefulWidget {
   const ChannelList({super.key});
+
+  @override
+  State<ChannelList> createState() => _ChannelListState();
+}
+
+class _ChannelListState extends State<ChannelList> {
+  bool _headerExpanded = true;
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +176,7 @@ class ChannelList extends StatelessWidget {
     }
 
     final channels = state.channelsFor(server);
+    final autumnUrl = state.autumnUrl;
 
     return Container(
       width: 220,
@@ -129,14 +184,31 @@ class ChannelList extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              server.name,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-              overflow: TextOverflow.ellipsis,
+          GestureDetector(
+            onTap: () => setState(() => _headerExpanded = !_headerExpanded),
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              child: _headerExpanded
+                  ? _ServerHeader(server: server, autumnUrl: autumnUrl)
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              server.name,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Icon(Icons.expand_more, size: 16),
+                        ],
+                      ),
+                    ),
             ),
           ),
           const Divider(height: 1),
@@ -150,13 +222,74 @@ class ChannelList extends StatelessWidget {
                 return _ChannelTile(
                   channel: channel,
                   selected: selected,
-                  onTap: () => state.selectChannel(channel),
+                  onTap: () {
+                    state.selectChannel(channel);
+                    if (_headerExpanded) {
+                      setState(() => _headerExpanded = false);
+                    }
+                  },
                 );
               },
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ServerHeader extends StatelessWidget {
+  final StoatServer server;
+  final String autumnUrl;
+
+  const _ServerHeader({required this.server, required this.autumnUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final bannerId = server.bannerId;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (bannerId != null)
+          Image.network(
+            '$autumnUrl/banners/$bannerId',
+            width: 220,
+            height: 80,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                server.name,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (server.description != null &&
+                  server.description!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    server.description!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -208,6 +341,8 @@ class _MessageAreaState extends State<MessageArea> {
   String? _error;
   final _inputCtrl = TextEditingController();
   bool _sending = false;
+  bool _loadingMore = false;
+  bool _hasMore = true;
 
   @override
   void dispose() {
@@ -233,32 +368,29 @@ class _MessageAreaState extends State<MessageArea> {
     }
   }
 
-  bool _loadingMore = false;
-  bool _hasMore = true;
-
-Future<void> _loadMore(String channelId) async {
-  if (_loadingMore || !_hasMore) return;
-  setState(() => _loadingMore = true);
-  try {
-    final messages = context.read<AppState>().messagesFor(channelId);
-    final oldest = messages.isNotEmpty ? messages.last.id : null;
-    final more = await widget.client.http.fetchMessages(
-      channelId,
-      before: oldest,
-    );
-    if (mounted) {
-      if (more.isEmpty) {
-        _hasMore = false;
-      } else {
-        context.read<AppState>().appendMessages(channelId, more);
+  Future<void> _loadMore(String channelId) async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final messages = context.read<AppState>().messagesFor(channelId);
+      final oldest = messages.isNotEmpty ? messages.last.id : null;
+      final more = await widget.client.http.fetchMessages(
+        channelId,
+        before: oldest,
+      );
+      if (mounted) {
+        if (more.isEmpty) {
+          _hasMore = false;
+        } else {
+          context.read<AppState>().appendMessages(channelId, more);
+        }
       }
+    } catch (_) {
+      // fail silently
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
     }
-  } catch (e) {
-    // fail silently — not critical
-  } finally {
-    if (mounted) setState(() => _loadingMore = false);
   }
-}
 
   @override
   void didChangeDependencies() {
@@ -341,28 +473,33 @@ Future<void> _loadMore(String channelId) async {
                           padding: const EdgeInsets.all(16),
                           itemCount: messages.length + 1,
                           itemBuilder: (context, i) {
-                              if (i == messages.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: Center(
-                                child: _loadingMore
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : _hasMore
-                                        ? TextButton(
-                                            onPressed: () => _loadMore(channel.id),
-                                            child: const Text('Load more'),
-                                          )
-                                        : const Text(
-                                            'Beginning of channel',
-                                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                                          ),
-                              ),
-                            );
-                          }
+                            if (i == messages.length) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: Center(
+                                  child: _loadingMore
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : _hasMore
+                                          ? TextButton(
+                                              onPressed: () =>
+                                                  _loadMore(channel.id),
+                                              child:
+                                                  const Text('Load more'),
+                                            )
+                                          : const Text(
+                                              'Beginning of channel',
+                                              style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey),
+                                            ),
+                                ),
+                              );
+                            }
 
                             final message = messages[i];
                             final author = context
@@ -376,9 +513,8 @@ Future<void> _loadMore(String channelId) async {
                                   final data = await widget.client.http
                                       .fetchUser(message.authorId);
                                   if (mounted) {
-                                    context
-                                        .read<AppState>()
-                                        .cacheUser(StoatUser.fromJson(data));
+                                    context.read<AppState>().cacheUser(
+                                        StoatUser.fromJson(data));
                                   }
                                 } catch (_) {}
                               });
@@ -403,7 +539,8 @@ Future<void> _loadMore(String channelId) async {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          author?.username ?? message.authorId,
+                                          author?.username ??
+                                              message.authorId,
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,
@@ -412,8 +549,8 @@ Future<void> _loadMore(String channelId) async {
                                         const SizedBox(height: 2),
                                         Text(
                                           message.content ?? '',
-                                          style:
-                                              const TextStyle(fontSize: 14),
+                                          style: const TextStyle(
+                                              fontSize: 14),
                                         ),
                                       ],
                                     ),
